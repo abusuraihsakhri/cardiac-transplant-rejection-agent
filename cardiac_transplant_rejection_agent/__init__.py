@@ -1,5 +1,31 @@
 """
-HeartTransplant Sentinel: Endomyocardial Biopsy ISHLT Rejection & DSA Tracker
-Reconciles ISHLT cellular rejection grades (0R-3R), antibody-mediated rejection (pAMR 0-3), and donor-specific anti-HLA antibodies (DSA MFI).
+Cardiac Transplant Rejection & Allograft Surveillance Package
 """
-__version__ = "2.0.0-PRO"
+
+from cardiac_transplant_rejection import (
+    TransplantCaseInput,
+    TransplantRejectionReport,
+    ACRGrade,
+    pAMRGrade,
+    OverallRejectionTier,
+    ImmunosuppressantDrug,
+    normalize_acr,
+    normalize_pamr,
+    evaluate_transplant_rejection,
+    calculate_metrics,
+    process_batch,
+)
+
+__all__ = [
+    "TransplantCaseInput",
+    "TransplantRejectionReport",
+    "ACRGrade",
+    "pAMRGrade",
+    "OverallRejectionTier",
+    "ImmunosuppressantDrug",
+    "normalize_acr",
+    "normalize_pamr",
+    "evaluate_transplant_rejection",
+    "calculate_metrics",
+    "process_batch",
+]
