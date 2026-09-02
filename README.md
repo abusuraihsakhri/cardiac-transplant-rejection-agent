@@ -1,102 +1,131 @@
 # Cardiac Transplant Rejection Agent
 
-> **Clinical Decision Support & Biomedical Computing**  
-> Reference Standards: `CAP, CLSI & ISO Standards`
+> **Domain:** Clinical Decision Support & Biomedical Computing  
+> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
 
 <div align="center">
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
 ![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
 ![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
 
 </div>
 
 ---
 
-## Overview
+## 📖 What It Does
 
-**Cardiac Transplant Rejection Agent** is a production-grade analytical platform designed for high-throughput evaluation, deterministic verification, and automated compliance checking. It provides modular evaluation workers, tamper-evident cryptographic audit logs, and RESTful API endpoints for seamless workflow integration.
+**Cardiac Transplant Rejection Agent** is an advanced analytical and computational platform implementing ISHLT Biopsy Grade (0R-3R) & Donor-Specific Antibody (DSA) Tracker.
+
+Cardiac Transplant Rejection & Allograft Surveillance Engine
+============================================================
+Comprehensive post-heart transplant rejection surveillance decision engine
+integrating ISHLT 2004 Acute Cellular Rejection (0R-3R), ISHLT 2013 Pathologic
+Antibody-Mediated Rejection (pAMR 0-3), Donor-Specific Anti-HLA Antibodies (DSA MFI),
+Donor-Derived Cell-Free DNA (dd-cfDNA %), Gene Expression Profiling (AlloMap),
+and Therapeutic Drug Monitoring (Tacrolimus / Cyclosporine / MMF).
+
+Standards & Guidelines:
+  - ISHLT 2004 Revised Heart Biopsy Grading
+  - ISHLT 2013 Working Formulation for Pathologic Diagnosis of AMR
+  - Consensus Guidelines on Non-Invasive Allograft Surveillance (dd-cfDNA & GEP)
 
 ---
 
-## Architecture
+## ⚙️ Key Capabilities & Algorithmic Modules
 
+### 🔬 Core Algorithmic & Evaluation Engines
+
+- **`BiopsyFinding`**: Endomyocardial biopsy finding.
+- **`BiopsyGradingAgent`**: Sub-agent for biopsy grading.
+- **`ACRGrade`** — dedicated module for a c r grade evaluation and state verification.
+- **`pAMRGrade`** — dedicated module for p a m r grade evaluation and state verification.
+- **`OverallRejectionTier`** — dedicated module for overall rejection tier evaluation and state verification.
+- **`ImmunosuppressantDrug`** — dedicated module for immunosuppressant drug evaluation and state verification.
+
+---
+
+## 📐 Mathematical Formulation & Logic
+
+```text
+  - ISHLT 2013 Working Formulation for Pathologic Diagnosis of AMR
+  score = 0.0
+  score = min(100.0, score)
+  calc_res = calculate_metrics(**r)
+  calculate_metrics,
 ```
-                    +--------------------------------------------------+
-                    |             Air-Gapped Telemetry Stream          |
-                    +--------------------------------------------------+
-                                             |
-                                             v
-                    +--------------------------------------------------+
-                    |                 SystemSupervisor                 |
-                    |       (Zero-PHI Memory & HMAC Audit Trail)       |
-                    +--------------------------------------------------+
-                               /             |             \
-                              /              |              \
-                             v               v               v
-               +-------------------+ +---------------+ +-------------------+
-               | InvariantQCWorker | | SafetyWorker  | | ProtocolWorker    |
-               | (Boundary Auditor)| | (Safety Alert)| | (Spec Conformance)|
-               +-------------------+ +---------------+ +-------------------+
+
+---
+
+## 💻 CLI Quickstart & Usage
+
+### 1. Guided Interactive Mode
+```bash
+python cli.py
 ```
 
+### 2. Direct Parameterized Evaluation
+```bash
+python cli.py --- <value> --case-id <value> --patient-id <value> --days <value>
+```
+
+### Parameter Reference
+- `---`: Specifies input measurement or parameter value.
+- `--case-id`: Specifies input measurement or parameter value.
+- `--patient-id`: Specifies input measurement or parameter value.
+- `--days`: Specifies input measurement or parameter value.
+- `--acr`: Specifies input measurement or parameter value.
+- `--pamr`: Specifies input measurement or parameter value.
+- `--dsa-positive`: Specifies input measurement or parameter value.
+- `--dsa-mfi`: Specifies input measurement or parameter value.
+- `--de-novo-dsa`: Specifies input measurement or parameter value.
+- `--dd-cfdna`: Specifies input measurement or parameter value.
+
+### Input Data Schema
+
+| Field | Description | Requirement |
+|:------|:------------|:------------|
+| `case_id` | Parameter / observation metric | Required |
+| `patient_synthetic_id` | Parameter / observation metric | Required |
+| `metric_primary` | Parameter / observation metric | Required |
+| `metric_secondary` | Parameter / observation metric | Required |
+| `is_stat` | Parameter / observation metric | Required |
+| `status_flag` | Parameter / observation metric | Required |
+
 ---
 
-## Features
+## 🛡️ Security & Enterprise Architecture
 
-* **Zero-PHI Outbound Interceptors**: AST-level pattern matching preventing sensitive identifier leaks.
-* **Tamper-Evident Audit Logging**: Cryptographically linked HMAC-SHA256 records securing every transaction.
-* **Multi-Worker Event Loops**: Dedicated verification workers for quality control, safety bounds, and protocol conformance.
-* **REST & CLI Interfaces**: Complete FastAPI application and interactive command-line interface.
-* **Automated Test Coverage**: Comprehensive test suites verifying boundary conditions and operational stability.
+* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
+* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
+* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
+* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
+* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
 
 ---
 
-## Quick Start (CLI)
+## 🧪 Testing & Verification
+
+Run the automated test suite:
 
 ```bash
-# Run task evaluation
-python cli.py audit --task-id TASK-2026-001 --primary 28.5
+pytest -v
+```
 
-# System configuration and status query
-python cli.py chat "Explain standard reference protocols and calibration limits"
+Execute high-throughput batch simulation benchmarks:
 
-# Verify HMAC-SHA256 audit trail integrity
-python cli.py verify-audit
-
-# Launch FastAPI REST Server
-python cli.py serve --port 8000
+```bash
+python simulator.py --tasks 1000 --concurrency 8
 ```
 
 ---
 
-## API Reference
+## 🐳 Container Deployment
 
-| Endpoint | Method | Description |
-|:---------|:------:|:------------|
-| `/health` | `GET` | System health check and metadata |
-| `/metrics` | `GET` | Operational metrics exporter |
-| `/api/audit` | `POST` | Dispatches task payload across workers and compiles consensus dossier |
-| `/api/chat` | `POST` | System query interface |
-| `/api/audit/logs` | `GET` | Cryptographic HMAC-SHA256 audit trail log with integrity verification |
-
----
-
-## Python API Usage
-
-```python
-from enrichment import enrichment_suite
-
-# Execute the module suite
-results = enrichment_suite.execute_all(primary_val=2.5, secondary_val=1.2)
-for module_name, res in results.items():
-    print(f"[{res.status}] {res.feature_name} -> Score: {res.score}")
+```bash
+docker build -t cardiac-transplant-rejection-agent .
+docker run -p 8000:8000 cardiac-transplant-rejection-agent
 ```
-
----
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
