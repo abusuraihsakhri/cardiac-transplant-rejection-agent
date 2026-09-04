@@ -1,4 +1,7 @@
-case_id,patient_synthetic_id,metric_primary,metric_secondary,is_stat,status_flag
-CASE-001,SYNTH-01,25.4,14.2,True,DISCORDANT
-CASE-002,SYNTH-02,12.0,4.1,False,NORMAL
-CASE-003,SYNTH-03,32.0,18.5,True,SUSPICIOUS
+case_id,patient_id,days_post_transplant,acr_grade,pamr_grade,c4d_positive,cd68_positive,dsa_positive,dsa_class_i_mfi,dsa_class_ii_mfi,de_novo_dsa,dd_cfdna_pct,allomap_score,primary_immunosuppressant,trough_level_ng_ml,lvef_pct,baseline_lvef_pct,hemodynamic_compromise
+TX_CASE_01,PT_QUIESCENT,180,0R,pAMR 0,False,False,False,200.0,350.0,False,0.08,26.0,Tacrolimus,7.8,64.0,65.0,False
+TX_CASE_02,PT_MILD_ACR,90,1R,pAMR 0,False,False,False,150.0,400.0,False,0.11,31.0,Tacrolimus,8.2,62.0,65.0,False
+TX_CASE_03,PT_MOD_ACR,45,2R,pAMR 0,False,False,False,300.0,600.0,False,0.35,38.0,Tacrolimus,5.4,52.0,65.0,False
+TX_CASE_04,PT_ACTIVE_AMR,120,0R,pAMR 2,True,True,True,2500.0,8500.0,True,0.48,36.0,Tacrolimus,6.8,48.0,64.0,False
+TX_CASE_05,PT_SEVERE_REJ,60,3R,pAMR 3,True,True,True,4000.0,14500.0,True,1.25,41.0,Tacrolimus,4.2,35.0,65.0,True
+

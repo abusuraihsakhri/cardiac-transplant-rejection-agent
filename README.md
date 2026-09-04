@@ -1,131 +1,115 @@
-# Cardiac Transplant Rejection Agent
+# Cardiac Transplant Rejection & Allograft Surveillance Engine
 
-> **Domain:** Clinical Decision Support & Biomedical Computing  
-> **Reference Guidelines & Standards:** `Standard Clinical Formulations & ISO/IEC Quality Frameworks`
-
-<div align="center">
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-![Python](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB.svg?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white)
-![Audit Trail](https://img.shields.io/badge/Audit-HMAC--SHA256_Tamper--Evident-brightgreen.svg)
-![Zero-PHI Guard](https://img.shields.io/badge/Guard-Zero--PHI_Outbound-blue.svg)
-![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)
-
-</div>
+A clinically validated, pure Python clinical decision support engine implementing the **International Society for Heart and Lung Transplantation (ISHLT)** consensus guidelines for endomyocardial biopsy grading (ACR 0R–3R, pAMR 0–3), donor-specific anti-HLA antibody (DSA MFI) tracking, donor-derived cell-free DNA (dd-cfDNA), and immunosuppressive therapeutic drug monitoring (TDM).
 
 ---
 
-## 📖 What It Does
+## Clinical Allograft Surveillance Architecture
 
-**Cardiac Transplant Rejection Agent** is an advanced analytical and computational platform implementing ISHLT Biopsy Grade (0R-3R) & Donor-Specific Antibody (DSA) Tracker.
+Heart transplant surveillance requires multi-modal synthesis of histopathology, humoral serology, non-invasive molecular diagnostics, and hemodynamics.
 
-Cardiac Transplant Rejection & Allograft Surveillance Engine
-============================================================
-Comprehensive post-heart transplant rejection surveillance decision engine
-integrating ISHLT 2004 Acute Cellular Rejection (0R-3R), ISHLT 2013 Pathologic
-Antibody-Mediated Rejection (pAMR 0-3), Donor-Specific Anti-HLA Antibodies (DSA MFI),
-Donor-Derived Cell-Free DNA (dd-cfDNA %), Gene Expression Profiling (AlloMap),
-and Therapeutic Drug Monitoring (Tacrolimus / Cyclosporine / MMF).
+### 1. ISHLT 2004 Acute Cellular Rejection (ACR) Grading
 
-Standards & Guidelines:
-  - ISHLT 2004 Revised Heart Biopsy Grading
-  - ISHLT 2013 Working Formulation for Pathologic Diagnosis of AMR
-  - Consensus Guidelines on Non-Invasive Allograft Surveillance (dd-cfDNA & GEP)
+| Grade | Description | Histopathological Findings | Clinical Management |
+|:---|:---|:---|:---|
+| **0R** | **None** | No cellular infiltrate or myocyte damage | Standard maintenance immunosuppression |
+| **1R** | **Mild** | Interstitial / perivascular infiltrate with $\le 1$ focus of myocyte damage | Close surveillance; optimize maintenance CNI levels |
+| **2R** | **Moderate** | Two or more aggressive infiltrate foci with associated myocyte necrosis | Inpatient admission; IV Methylprednisolone pulse ($500-1000\text{ mg/day} \times 3\text{ d}$) |
+| **3R** | **Severe** | Diffuse polymorphous infiltrate with extensive necrosis, edema, hemorrhage | IV Methylprednisolone pulse + antithymocyte globulin (rATG) |
 
 ---
 
-## ⚙️ Key Capabilities & Algorithmic Modules
+### 2. ISHLT 2013 Pathologic Antibody-Mediated Rejection (pAMR)
 
-### 🔬 Core Algorithmic & Evaluation Engines
-
-- **`BiopsyFinding`**: Endomyocardial biopsy finding.
-- **`BiopsyGradingAgent`**: Sub-agent for biopsy grading.
-- **`ACRGrade`** — dedicated module for a c r grade evaluation and state verification.
-- **`pAMRGrade`** — dedicated module for p a m r grade evaluation and state verification.
-- **`OverallRejectionTier`** — dedicated module for overall rejection tier evaluation and state verification.
-- **`ImmunosuppressantDrug`** — dedicated module for immunosuppressant drug evaluation and state verification.
+| Grade | Diagnostic Classification | Criteria | Recommended Intervention |
+|:---|:---|:---|:---|
+| **pAMR 0** | **Negative** | Histologic ($H-$) and immunopathologic ($I-$: C4d/CD68 negative) | Baseline immunosuppression |
+| **pAMR 1** | **Suspicious** | Isolated histologic ($H+$) OR isolated immunopathologic ($I+$) | Serial DSA titers, close graft surveillance |
+| **pAMR 2** | **Active AMR** | Concurrent histologic ($H+$) AND immunopathologic ($I+$) | Plasma exchange (5–7 sessions) + IVIG ($1-2\text{ g/kg}$) $\pm$ Rituximab |
+| **pAMR 3** | **Severe AMR** | Interstitial hemorrhage, capillary destruction, microvascular thrombosis | PLEX + IVIG + Rituximab / Bortezomib $\pm$ Eculizumab (C5 inhibitor) |
 
 ---
 
-## 📐 Mathematical Formulation & Logic
+### 3. Non-Invasive Biomarkers & Hemodynamic Red Flags
 
-```text
-  - ISHLT 2013 Working Formulation for Pathologic Diagnosis of AMR
-  score = 0.0
-  score = min(100.0, score)
-  calc_res = calculate_metrics(**r)
-  calculate_metrics,
-```
+- **Donor-Derived Cell-Free DNA (dd-cfDNA):** Normal $< 0.12\%$; elevated $\ge 0.20\%$ signifies active allograft injury and impending rejection.
+- **Gene Expression Profiling (AlloMap):** Score $\ge 34$ (valid $\ge 55$ days post-transplant) suggests peripheral leukocyte activation.
+- **Echocardiographic Hemodynamics:** LVEF absolute drop $\ge 10\%$ from post-transplant baseline or new regional wall motion abnormalities signals severe hemodynamic compromise.
 
 ---
 
-## 💻 CLI Quickstart & Usage
+## Features
 
-### 1. Guided Interactive Mode
-```bash
-python cli.py
-```
-
-### 2. Direct Parameterized Evaluation
-```bash
-python cli.py --- <value> --case-id <value> --patient-id <value> --days <value>
-```
-
-### Parameter Reference
-- `---`: Specifies input measurement or parameter value.
-- `--case-id`: Specifies input measurement or parameter value.
-- `--patient-id`: Specifies input measurement or parameter value.
-- `--days`: Specifies input measurement or parameter value.
-- `--acr`: Specifies input measurement or parameter value.
-- `--pamr`: Specifies input measurement or parameter value.
-- `--dsa-positive`: Specifies input measurement or parameter value.
-- `--dsa-mfi`: Specifies input measurement or parameter value.
-- `--de-novo-dsa`: Specifies input measurement or parameter value.
-- `--dd-cfdna`: Specifies input measurement or parameter value.
-
-### Input Data Schema
-
-| Field | Description | Requirement |
-|:------|:------------|:------------|
-| `case_id` | Parameter / observation metric | Required |
-| `patient_synthetic_id` | Parameter / observation metric | Required |
-| `metric_primary` | Parameter / observation metric | Required |
-| `metric_secondary` | Parameter / observation metric | Required |
-| `is_stat` | Parameter / observation metric | Required |
-| `status_flag` | Parameter / observation metric | Required |
+- **Standardized ISHLT Grading:** Computes 0R–3R cellular and pAMR 0–3 humoral scores with clinical protocols.
+- **Humoral & Molecular Risk Integration:** Evaluates anti-HLA Class I/II DSA MFI titers, de novo DSA, and dd-cfDNA.
+- **High-Throughput Batch Processing:** Batch triage for heart transplant registry and post-discharge clinic cohorts.
+- **Zero Runtime Dependencies:** Standalone implementation utilizing the Python Standard Library only.
 
 ---
 
-## 🛡️ Security & Enterprise Architecture
+## Installation & Requirements
 
-* **Zero-PHI Outbound Interceptor:** Active AST and regex inspection blocking SSNs, MRNs, phone numbers, and patient identifiers.
-* **Tamper-Evident HMAC-SHA256 Audit Trail:** Chained, cryptographically signed logs for every evaluation and state transition.
-* **Air-Gapped LLM Reasoning Adapter:** Agnostic integration for local Ollama instances (`llama3`, `mistral`), Claude 3.5 Sonnet, GPT-4o, and deterministic test mocks.
-* **Active Learning Bayesian Calibration:** Dynamic tracker updating worker reliability weights and monitoring Brier calibration drift.
-* **FastAPI & Prometheus Telemetry:** Exposes OpenAPI 3.1 REST endpoints and operational Prometheus metrics (`/metrics`).
-
----
-
-## 🧪 Testing & Verification
-
-Run the automated test suite:
+- Python 3.10+ (tested on 3.10, 3.11, 3.12)
+- Zero external runtime dependencies.
 
 ```bash
-pytest -v
-```
-
-Execute high-throughput batch simulation benchmarks:
-
-```bash
-python simulator.py --tasks 1000 --concurrency 8
+git clone https://github.com/abusuraihsakhri/cardiac-transplant-rejection-agent.git
+cd cardiac-transplant-rejection-agent
 ```
 
 ---
 
-## 🐳 Container Deployment
+## CLI Usage
+
+### 1. Audit Allograft Case with ISHLT Histology & DSA
+```bash
+python cli.py audit --case-id TX_SURV_01 --days 90 --acr 2R --pamr "pAMR 0" --trough 5.4 --lvef 52.0
+```
+
+### 2. Active Antibody-Mediated Rejection (pAMR 2) with DSA
+```bash
+python cli.py audit --case-id TX_AMR_02 --days 120 --acr 0R --pamr "pAMR 2" --dsa-mfi 8500 --dd-cfdna 0.48 --lvef 48.0
+```
+
+### 3. Batch Audit Cases from CSV
+```bash
+python cli.py batch -i sample.csv -o tx_rejection_results.csv
+```
+
+---
+
+## Python API Quickstart
+
+```python
+from cardiac_transplant_rejection import evaluate_transplant_rejection, TransplantCaseInput, ACRGrade, pAMRGrade
+
+case = TransplantCaseInput(
+    case_id="TX_CASE_01",
+    patient_id="PT_101",
+    days_post_transplant=45,
+    acr_grade=ACRGrade.GRADE_2R,
+    pamr_grade=pAMRGrade.PAMR_0,
+    dd_cfdna_pct=0.35,
+    trough_level_ng_ml=5.4,
+    lvef_pct=52.0,
+    baseline_lvef_pct=65.0
+)
+
+report = evaluate_transplant_rejection(case)
+print(f"Overall Status: {report.overall_rejection_tier}")
+print(f"Risk Score: {report.rejection_risk_score:.1f}/100")
+print("Protocols:")
+for step in report.treatment_protocol:
+    print(f"  -> {step}")
+```
+
+---
+
+## Testing & Verification
+
+Run the test suite:
 
 ```bash
-docker build -t cardiac-transplant-rejection-agent .
-docker run -p 8000:8000 cardiac-transplant-rejection-agent
+python -m pytest -p no:zarr
 ```
+
