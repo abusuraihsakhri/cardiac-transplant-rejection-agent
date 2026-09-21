@@ -1,27 +1,55 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "cardiac-transplant-rejection-engine"
-version = "2.0.0"
-description = "HeartTransplant Sentinel: Endomyocardial Biopsy ISHLT Rejection & DSA Tracker"
+version = "2.1.0"
+description = "Transparent heart-transplant rejection surveillance heuristic for research and education"
 readme = "README.md"
-authors = [{ name = "Dr. Abu Suraih Sakhri", email = "abusuraih@example.com" }]
-license = { text = "MIT" }
+authors = [{ name = "NAME" }]
+license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
 
+[project.optional-dependencies]
+server = ["fastapi>=0.115", "uvicorn>=0.30"]
+dev = ["build>=1", "pytest>=8", "ruff>=0.12"]
+
 [project.scripts]
-cardiac-transplant-rejection-engine = "cardiac_transplant_rejection_agent.cli:main"
+cardiac-transplant-rejection = "cli:main"
+cardiac-transplant-rejection-engine = "cli:main"
 
 [project.urls]
-Homepage = "https://github.com/abusuraihsakhri/cardiac-transplant-rejection-engine"
-Repository = "https://github.com/abusuraihsakhri/cardiac-transplant-rejection-engine.git"
+Homepage = "https://github.com/abusuraihsakhri/cardiac-transplant-rejection-agent"
+Repository = "https://github.com/abusuraihsakhri/cardiac-transplant-rejection-agent.git"
+
+[tool.setuptools]
+py-modules = [
+    "cardiac_transplant_rejection",
+    "cli",
+    "heart_transplant",
+    "biopsy_grading",
+    "immune_monitoring",
+]
+
+[tool.setuptools.packages.find]
+include = ["cardiac_transplant_rejection_agent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
