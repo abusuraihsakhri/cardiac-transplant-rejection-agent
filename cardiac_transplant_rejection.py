@@ -1,49 +1,41 @@
 #!/usr/bin/env python3
-"""
-Cardiac Transplant Rejection & Allograft Surveillance Engine
-============================================================
-Comprehensive post-heart transplant rejection surveillance decision engine
-integrating ISHLT 2004 Acute Cellular Rejection (0R-3R), ISHLT 2013 Pathologic
-Antibody-Mediated Rejection (pAMR 0-3), Donor-Specific Anti-HLA Antibodies (DSA MFI),
-Donor-Derived Cell-Free DNA (dd-cfDNA %), Gene Expression Profiling (AlloMap),
-and Therapeutic Drug Monitoring (Tacrolimus / Cyclosporine / MMF).
+"""Heart-transplant rejection surveillance helpers.
 
-Standards & Guidelines:
-  - ISHLT 2004 Revised Heart Biopsy Grading
-  - ISHLT 2013 Working Formulation for Pathologic Diagnosis of AMR
-  - Consensus Guidelines on Non-Invasive Allograft Surveillance (dd-cfDNA & GEP)
+The module implements a transparent, dependency-free *heuristic* synthesis of
+ISHLT biopsy grades and commonly used post-transplant surveillance variables.
+It is intended for education, research prototyping, and reproducible data
+processing. It is not a validated clinical decision rule and does not prescribe
+patient-specific treatment.
 """
 
 from __future__ import annotations
 
 import csv
-import json
-import math
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 class ACRGrade(str, Enum):
-    GRADE_0R = "0R"          # None
-    GRADE_1R = "1R"          # Mild (interstitial / perivascular infiltrate, <= 1 focus myocyte damage)
-    GRADE_2R = "2R"          # Moderate (>= 2 foci with myocyte damage)
-    GRADE_3R = "3R"          # Severe (diffuse infiltrate, extensive myocyte necrosis, edema, hemorrhage)
+    GRADE_0R = "0R"
+    GRADE_1R = "1R"
+    GRADE_2R = "2R"
+    GRADE_3R = "3R"
 
 
 class pAMRGrade(str, Enum):
-    pAMR_0 = "pAMR 0"        # Negative for both histologic and immunopathologic
-    pAMR_1_H = "pAMR 1(H+)"  # Histopathologic AMR alone
-    pAMR_1_I = "pAMR 1(I+)"  # Immunopathologic AMR alone (positive C4d / C3d)
-    pAMR_2 = "pAMR 2"        # Both histopathologic and immunopathologic AMR
-    pAMR_3 = "pAMR 3"        # Severe AMR (capillary destruction, microthrombi)
+    pAMR_0 = "pAMR 0"
+    pAMR_1_H = "pAMR 1(H+)"
+    pAMR_1_I = "pAMR 1(I+)"
+    pAMR_2 = "pAMR 2"
+    pAMR_3 = "pAMR 3"
 
 
 class OverallRejectionTier(str, Enum):
-    QUIESCENT = "Quiescent / Normal Allograft"
-    MILD_SUSPICION = "Mild Rejection / Surveillance Watch"
-    MODERATE_REJECTION = "Moderate Rejection (Active Treatment Indicated)"
-    SEVERE_CRITICAL = "Severe Rejection / Hemodynamic Compromise"
+    QUIESCENT = "Low concern by heuristic screen"
+    MILD_SUSPICION = "Increased concern — correlate clinically"
+    MODERATE_REJECTION = "High concern — prompt transplant-team review"
+    SEVERE_CRITICAL = "Very high concern — urgent transplant-team review"
 
 
 class ImmunosuppressantDrug(str, Enum):
@@ -55,46 +47,45 @@ class ImmunosuppressantDrug(str, Enum):
 
 @dataclass
 class TransplantCaseInput:
-    """Clinical, biopsy, serologic, and biomarker profile for transplant surveillance."""
+    """Clinical, pathology, serologic, and biomarker surveillance inputs."""
+
     case_id: str = "TX-CASE-001"
     patient_id: Optional[str] = None
     days_post_transplant: int = 180
-    
-    # Biopsy ISHLT Grading
+
     acr_grade: Union[ACRGrade, str] = ACRGrade.GRADE_0R
     pamr_grade: Union[pAMRGrade, str] = pAMRGrade.pAMR_0
     c4d_positive: bool = False
     cd68_positive: bool = False
-    
-    # Donor-Specific Antibodies (DSA)
+
     dsa_positive: bool = False
-    dsa_class_i_mfi: float = 0.0          # Max Class I HLA MFI
-    dsa_class_ii_mfi: float = 0.0         # Max Class II HLA MFI (e.g. DQ, DR)
+    dsa_class_i_mfi: float = 0.0
+    dsa_class_ii_mfi: float = 0.0
     de_novo_dsa: bool = False
-    
-    # Non-Invasive Surveillance Biomarkers
-    dd_cfdna_pct: Optional[float] = 0.08   # % donor-derived cell-free DNA (threshold 0.12 - 0.20%)
-    allomap_score: Optional[float] = 28.0  # GEP score 0 - 40 (threshold 34 at >= 6 mo)
-    
-    # Therapeutic Drug Monitoring (TDM)
+
+    dd_cfdna_pct: Optional[float] = 0.08
+    allomap_score: Optional[float] = 28.0
+
     primary_immunosuppressant: Union[ImmunosuppressantDrug, str] = ImmunosuppressantDrug.TACROLIMUS
-    trough_level_ng_ml: float = 8.5       # Tacrolimus (ng/mL) or Cyclosporine (ng/mL)
-    mmf_mpa_trough_ug_ml: float = 2.5     # Mycophenolic acid (ug/mL, target 1.5 - 4.0)
-    
-    # Hemodynamics & Echocardiography
-    lvef_pct: float = 62.0                # Current LVEF (%)
-    baseline_lvef_pct: float = 65.0       # Baseline post-transplant LVEF
-    hemodynamic_compromise: bool = False  # Cardiogenic shock, hypotension, inotrope requirement
-    cav_grade: int = 0                    # ISHLT CAV 0, 1, 2, 3
+    trough_level_ng_ml: float = 8.5
+    trough_target_low_ng_ml: Optional[float] = None
+    trough_target_high_ng_ml: Optional[float] = None
+    mmf_mpa_trough_ug_ml: float = 2.5
+
+    lvef_pct: float = 62.0
+    baseline_lvef_pct: float = 65.0
+    hemodynamic_compromise: bool = False
+    cav_grade: int = 0
 
 
 @dataclass
 class TransplantRejectionReport:
-    """Consolidated allograft rejection surveillance dossier and treatment plan."""
+    """Consolidated surveillance summary from the heuristic engine."""
+
     case_id: str
     patient_id: Optional[str]
     days_post_transplant: int
-    rejection_risk_score: float           # 0 - 100
+    rejection_risk_score: float
     overall_rejection_tier: str
     acr_status: str
     pamr_status: str
@@ -105,205 +96,295 @@ class TransplantRejectionReport:
     treatment_protocol: List[str] = field(default_factory=list)
     monitoring_recommendations: List[str] = field(default_factory=list)
     critical_alerts: List[str] = field(default_factory=list)
+    limitations: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 def normalize_acr(grade: Union[ACRGrade, str]) -> str:
-    g = grade.value if isinstance(grade, ACRGrade) else str(grade).upper().strip()
-    if g in ("0", "0R", "NONE", "GRADE_0R"):
-        return "0R"
-    elif g in ("1", "1R", "1A", "1B", "GRADE_1R", "1R_MILD"):
-        return "1R"
-    elif g in ("2", "2R", "GRADE_2R", "2R_MODERATE"):
-        return "2R"
-    elif g in ("3", "3R", "3A", "3B", "GRADE_3R", "3R_SEVERE"):
-        return "3R"
-    return "0R"
+    """Normalize revised ISHLT ACR grade notation.
+
+    Legacy 1990 grades are accepted only when unambiguous aliases are supplied.
+    Bare numeric grades are treated as revised-grade shorthand, not as 1990
+    nomenclature.
+    """
+
+    g = (grade.value if isinstance(grade, ACRGrade) else str(grade)).upper().strip()
+    aliases = {
+        "0": "0R",
+        "0R": "0R",
+        "NONE": "0R",
+        "GRADE_0R": "0R",
+        "1": "1R",
+        "1R": "1R",
+        "GRADE_1R": "1R",
+        "1R_MILD": "1R",
+        "2": "2R",
+        "2R": "2R",
+        "GRADE_2R": "2R",
+        "2R_MODERATE": "2R",
+        "3": "3R",
+        "3R": "3R",
+        "GRADE_3R": "3R",
+        "3R_SEVERE": "3R",
+        "1990 1A": "1R",
+        "1990 1B": "1R",
+        "1990 2": "1R",
+        "1990 3A": "2R",
+        "1990 3B": "3R",
+        "1990 4": "3R",
+    }
+    try:
+        return aliases[g]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported ACR grade: {grade!r}. Use 0R, 1R, 2R, or 3R.") from exc
 
 
 def normalize_pamr(grade: Union[pAMRGrade, str]) -> str:
-    g = grade.value if isinstance(grade, pAMRGrade) else str(grade).upper().strip()
-    if "0" in g:
-        return "pAMR 0"
-    elif "1(H" in g or "1-H" in g:
-        return "pAMR 1(H+)"
-    elif "1(I" in g or "1-I" in g:
-        return "pAMR 1(I+)"
-    elif "1" in g:
-        return "pAMR 1"
-    elif "2" in g:
-        return "pAMR 2"
-    elif "3" in g:
-        return "pAMR 3"
-    return "pAMR 0"
+    """Normalize ISHLT pAMR notation and reject unknown values."""
+
+    g = (grade.value if isinstance(grade, pAMRGrade) else str(grade)).upper().strip()
+    compact = g.replace(" ", "")
+    aliases = {
+        "PAMR0": "pAMR 0",
+        "0": "pAMR 0",
+        "PAMR1(H+)": "pAMR 1(H+)",
+        "PAMR1-H": "pAMR 1(H+)",
+        "PAMR1H": "pAMR 1(H+)",
+        "PAMR1(I+)": "pAMR 1(I+)",
+        "PAMR1-I": "pAMR 1(I+)",
+        "PAMR1I": "pAMR 1(I+)",
+        "PAMR1": "pAMR 1",
+        "1": "pAMR 1",
+        "PAMR2": "pAMR 2",
+        "2": "pAMR 2",
+        "PAMR3": "pAMR 3",
+        "3": "pAMR 3",
+    }
+    try:
+        return aliases[compact]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported pAMR grade: {grade!r}. Use pAMR 0, pAMR 1(H+), "
+            "pAMR 1(I+), pAMR 2, or pAMR 3."
+        ) from exc
+
+
+def _validate_range(name: str, value: float, low: float, high: float) -> None:
+    if not low <= value <= high:
+        raise ValueError(f"{name} ({value}) must be between {low} and {high}.")
+
+
+def _validate_input(inp: TransplantCaseInput) -> None:
+    if inp.days_post_transplant < 0:
+        raise ValueError("days_post_transplant cannot be negative.")
+    _validate_range("lvef_pct", float(inp.lvef_pct), 0.0, 100.0)
+    _validate_range("baseline_lvef_pct", float(inp.baseline_lvef_pct), 0.0, 100.0)
+    if inp.trough_level_ng_ml < 0:
+        raise ValueError("trough_level_ng_ml cannot be negative.")
+    if inp.mmf_mpa_trough_ug_ml < 0:
+        raise ValueError("mmf_mpa_trough_ug_ml cannot be negative.")
+    if inp.dsa_class_i_mfi < 0 or inp.dsa_class_ii_mfi < 0:
+        raise ValueError("DSA MFI values cannot be negative.")
+    if inp.dd_cfdna_pct is not None:
+        _validate_range("dd_cfdna_pct", float(inp.dd_cfdna_pct), 0.0, 100.0)
+    if inp.allomap_score is not None:
+        _validate_range("allomap_score", float(inp.allomap_score), 0.0, 40.0)
+    if inp.cav_grade not in (0, 1, 2, 3):
+        raise ValueError("cav_grade must be one of 0, 1, 2, or 3.")
+
+    low = inp.trough_target_low_ng_ml
+    high = inp.trough_target_high_ng_ml
+    if (low is None) != (high is None):
+        raise ValueError("Provide both trough target bounds or neither.")
+    if low is not None and high is not None:
+        if low < 0 or high < 0 or low >= high:
+            raise ValueError("Trough target bounds must be non-negative with low < high.")
 
 
 def evaluate_transplant_rejection(inp: TransplantCaseInput) -> TransplantRejectionReport:
-    """
-    Evaluates heart allograft surveillance status across cellular, humoral, biomarker, and TDM domains.
-    """
-    # Validations
-    if inp.days_post_transplant < 0:
-        raise ValueError(f"Days post-transplant ({inp.days_post_transplant}) cannot be negative.")
-    if inp.lvef_pct < 10.0 or inp.lvef_pct > 90.0:
-        raise ValueError(f"LVEF ({inp.lvef_pct}%) is outside physiological limits [10, 90].")
-    if inp.trough_level_ng_ml < 0:
-        raise ValueError("Immunosuppressant trough level cannot be negative.")
+    """Evaluate a case with a transparent, non-validated heuristic score."""
 
+    _validate_input(inp)
     score = 0.0
     alerts: List[str] = []
-    protocol: List[str] = []
+    review_actions: List[str] = []
     monitoring: List[str] = []
 
-    # 1. Acute Cellular Rejection (ACR) Scoring
     acr_norm = normalize_acr(inp.acr_grade)
     if acr_norm == "0R":
-        acr_desc = "0R (No cellular rejection)"
+        acr_desc = "0R — no acute cellular rejection on biopsy"
     elif acr_norm == "1R":
         score += 15.0
-        acr_desc = "1R (Mild cellular rejection - interstitial infiltrate without significant necrosis)"
+        acr_desc = "1R — mild acute cellular rejection"
     elif acr_norm == "2R":
         score += 45.0
-        acr_desc = "2R (Moderate cellular rejection - multiple foci with myocyte damage)"
-    else:  # 3R
+        acr_desc = "2R — moderate acute cellular rejection"
+        alerts.append("HIGH CONCERN: ACR 2R requires clinical correlation by the transplant team.")
+    else:
         score += 75.0
-        acr_desc = "3R (Severe cellular rejection - diffuse polymorphous infiltrate with myocyte necrosis/hemorrhage)"
+        acr_desc = "3R — severe acute cellular rejection"
+        alerts.append("URGENT: ACR 3R is severe rejection and warrants urgent specialist assessment.")
 
-    # 2. Antibody-Mediated Rejection (pAMR) Scoring
     pamr_norm = normalize_pamr(inp.pamr_grade)
     if pamr_norm == "pAMR 0":
-        pamr_desc = "pAMR 0 (Negative for histologic and immunopathologic AMR)"
-    elif pamr_norm in ("pAMR 1(H+)", "pAMR 1(I+)", "pAMR 1"):
+        pamr_desc = "pAMR 0 — negative for pathologic AMR"
+    elif pamr_norm in ("pAMR 1(H+)", "pAMR 1(I+)"):
         score += 20.0
-        pamr_desc = f"{pamr_norm} (Suspicious / isolated histologic or immunopathologic AMR)"
+        pamr_desc = f"{pamr_norm} — one pathologic component of AMR present"
+    elif pamr_norm == "pAMR 1":
+        score += 20.0
+        pamr_desc = "pAMR 1 — subtype not specified; verify H+ versus I+ classification"
+        alerts.append("REVIEW: pAMR 1 should be documented with H+ or I+ subtype when available.")
     elif pamr_norm == "pAMR 2":
         score += 55.0
-        pamr_desc = "pAMR 2 (Definite active AMR - concurrent histologic and immunopathologic features)"
-    else:  # pAMR 3
+        pamr_desc = "pAMR 2 — pathologic AMR with histologic and immunopathologic findings"
+        alerts.append("HIGH CONCERN: pAMR 2 requires prompt transplant-team correlation.")
+    else:
         score += 85.0
-        pamr_desc = "pAMR 3 (Severe AMR with capillary destruction and microvascular injury)"
+        pamr_desc = "pAMR 3 — severe pathologic AMR"
+        alerts.append("URGENT: pAMR 3 warrants urgent specialist assessment.")
 
-    # 3. Donor-Specific Antibodies (DSA)
     max_mfi = max(inp.dsa_class_i_mfi, inp.dsa_class_ii_mfi)
-    if inp.dsa_positive or max_mfi > 1000.0:
-        if max_mfi >= 10000.0:
-            score += 30.0
-            dsa_desc = f"Ultra-High DSA Titers (Peak MFI: {max_mfi:.0f}) - High AMR risk"
-            alerts.append(f"CRITICAL: Ultra-high donor-specific antibody MFI ({max_mfi:.0f}) detected.")
-        elif max_mfi >= 5000.0:
-            score += 20.0
-            dsa_desc = f"Strong Positive DSA (Peak MFI: {max_mfi:.0f})"
-            alerts.append(f"WARNING: Strong DSA MFI ({max_mfi:.0f}) warrants intensified humoral surveillance.")
-        else:
-            score += 10.0
-            dsa_desc = f"Low/Moderate DSA (Peak MFI: {max_mfi:.0f})"
-        
+    if inp.dsa_positive:
+        score += 10.0
+        dsa_desc = "DSA reported positive"
+        if max_mfi > 0:
+            dsa_desc += f" (reported peak MFI {max_mfi:.0f}; assay/center-specific interpretation)"
         if inp.de_novo_dsa:
             score += 10.0
-            alerts.append("WARNING: De novo DSA development indicates heightened graft vulnerability.")
+            dsa_desc += "; de novo DSA reported"
+            alerts.append("REVIEW: De novo DSA increases concern and should be interpreted with graft findings.")
     else:
-        dsa_desc = "DSA Negative (MFI < 1000)"
+        if max_mfi > 0:
+            dsa_desc = (
+                f"DSA not flagged positive; MFI value {max_mfi:.0f} supplied — verify the laboratory's "
+                "assay-specific positivity criteria"
+            )
+        else:
+            dsa_desc = "DSA not reported positive"
 
-    # 4. Non-Invasive Surveillance Biomarkers (dd-cfDNA & AlloMap)
-    bm_items: List[str] = []
+    biomarker_items: List[str] = []
     if inp.dd_cfdna_pct is not None:
-        if inp.dd_cfdna_pct >= 0.20:
+        value = inp.dd_cfdna_pct
+        if value >= 0.20:
             score += 25.0
-            bm_items.append(f"dd-cfDNA markedly elevated ({inp.dd_cfdna_pct:.2f}% >= 0.20% cutoff)")
-            alerts.append(f"CRITICAL: High donor-derived cell-free DNA ({inp.dd_cfdna_pct:.2f}%) indicates active allograft injury.")
-        elif inp.dd_cfdna_pct >= 0.12:
+            biomarker_items.append(
+                f"dd-cfDNA {value:.2f}% is above the tool's 0.20% high-concern heuristic threshold"
+            )
+            alerts.append("REVIEW: Elevated dd-cfDNA indicates allograft injury risk but is not rejection-specific.")
+        elif value >= 0.12:
             score += 12.0
-            bm_items.append(f"dd-cfDNA borderline elevated ({inp.dd_cfdna_pct:.2f}%)")
+            biomarker_items.append(
+                f"dd-cfDNA {value:.2f}% is between the tool's 0.12% and 0.20% heuristic thresholds"
+            )
         else:
-            bm_items.append(f"dd-cfDNA normal ({inp.dd_cfdna_pct:.2f}% < 0.12%)")
+            biomarker_items.append(f"dd-cfDNA {value:.2f}% is below the tool's 0.12% heuristic threshold")
 
-    if inp.allomap_score is not None and inp.days_post_transplant >= 55:
-        if inp.allomap_score >= 34.0:
+    if inp.allomap_score is not None:
+        if inp.days_post_transplant < 60:
+            biomarker_items.append(
+                f"GEP/AlloMap score {inp.allomap_score:.1f} recorded before 2 months; this tool does not score it"
+            )
+        elif inp.allomap_score >= 34.0:
             score += 15.0
-            bm_items.append(f"AlloMap GEP elevated ({inp.allomap_score:.1f} >= 34 cutoff)")
-            alerts.append(f"WARNING: Elevated AlloMap score ({inp.allomap_score:.1f}) indicates cellular activation.")
+            biomarker_items.append(
+                f"GEP/AlloMap score {inp.allomap_score:.1f} is at/above the tool's 34-point heuristic threshold"
+            )
+            alerts.append("REVIEW: Interpret GEP only in the validated population and clinical context.")
         else:
-            bm_items.append(f"AlloMap GEP low risk ({inp.allomap_score:.1f} < 34)")
+            biomarker_items.append(
+                f"GEP/AlloMap score {inp.allomap_score:.1f} is below the tool's 34-point heuristic threshold"
+            )
 
-    bm_desc = "; ".join(bm_items) if bm_items else "Biomarkers not performed"
+    biomarker_desc = "; ".join(biomarker_items) if biomarker_items else "Biomarkers not supplied"
 
-    # 5. Therapeutic Drug Monitoring (TDM)
-    drug_name = inp.primary_immunosuppressant.value if isinstance(inp.primary_immunosuppressant, ImmunosuppressantDrug) else str(inp.primary_immunosuppressant)
-    # Tacrolimus target windows by time post-transplant
-    if "tacrolimus" in drug_name.lower():
-        if inp.days_post_transplant <= 90:
-            target_range = (8.0, 12.0)
-        elif inp.days_post_transplant <= 365:
-            target_range = (6.0, 10.0)
-        else:
-            target_range = (5.0, 8.0)
-    else:  # Cyclosporine default
-        if inp.days_post_transplant <= 90:
-            target_range = (250.0, 350.0)
-        else:
-            target_range = (150.0, 250.0)
-
-    if inp.trough_level_ng_ml < target_range[0]:
-        score += 10.0
-        tdm_desc = f"Subtherapeutic {drug_name} Trough ({inp.trough_level_ng_ml:.1f} ng/mL vs Target {target_range[0]}-{target_range[1]})"
-        alerts.append(f"WARNING: Subtherapeutic immunosuppression trough elevates rejection susceptibility.")
-    elif inp.trough_level_ng_ml > target_range[1] * 1.3:
-        tdm_desc = f"Supratherapeutic {drug_name} Trough ({inp.trough_level_ng_ml:.1f} ng/mL) - Nephrotoxicity / Infection Risk"
-        alerts.append(f"ADVISORY: Supratherapeutic trough requires dose reduction to avert calcineurin inhibitor nephrotoxicity.")
+    drug_name = (
+        inp.primary_immunosuppressant.value
+        if isinstance(inp.primary_immunosuppressant, ImmunosuppressantDrug)
+        else str(inp.primary_immunosuppressant).strip() or "Immunosuppressant"
+    )
+    if inp.trough_target_low_ng_ml is None:
+        tdm_desc = (
+            f"{drug_name} trough {inp.trough_level_ng_ml:.1f} ng/mL; no patient/center-specific target range supplied"
+        )
     else:
-        tdm_desc = f"Therapeutic {drug_name} Trough ({inp.trough_level_ng_ml:.1f} ng/mL within Target {target_range[0]}-{target_range[1]})"
+        low = float(inp.trough_target_low_ng_ml)
+        high = float(inp.trough_target_high_ng_ml)
+        if inp.trough_level_ng_ml < low:
+            score += 10.0
+            tdm_desc = (
+                f"{drug_name} trough {inp.trough_level_ng_ml:.1f} ng/mL is below supplied target {low:.1f}-{high:.1f}"
+            )
+            alerts.append("REVIEW: Immunosuppressant trough is below the supplied target range.")
+        elif inp.trough_level_ng_ml > high:
+            tdm_desc = (
+                f"{drug_name} trough {inp.trough_level_ng_ml:.1f} ng/mL is above supplied target {low:.1f}-{high:.1f}"
+            )
+            alerts.append("REVIEW: Immunosuppressant trough is above the supplied target range.")
+        else:
+            tdm_desc = (
+                f"{drug_name} trough {inp.trough_level_ng_ml:.1f} ng/mL is within supplied target {low:.1f}-{high:.1f}"
+            )
 
-    # 6. Graft Hemodynamics
     lvef_drop = inp.baseline_lvef_pct - inp.lvef_pct
     if inp.hemodynamic_compromise or lvef_drop >= 15.0 or inp.lvef_pct < 40.0:
         score += 35.0
-        graft_desc = f"Severe Hemodynamic Dysfunction (LVEF {inp.lvef_pct:.0f}%, drop {lvef_drop:+.0f}%)"
-        alerts.append("CRITICAL: Hemodynamic compromise or sharp LVEF deterioration detected.")
+        graft_desc = f"Marked graft-function concern (LVEF {inp.lvef_pct:.0f}%, change {-lvef_drop:+.0f} percentage points)"
+        alerts.append("URGENT: Hemodynamic compromise or marked graft dysfunction requires urgent clinical assessment.")
     elif lvef_drop >= 10.0 or inp.lvef_pct < 50.0:
         score += 15.0
-        graft_desc = f"Mild/Moderate LVEF Decline (LVEF {inp.lvef_pct:.0f}%, drop {lvef_drop:+.0f}%)"
+        graft_desc = f"Graft-function concern (LVEF {inp.lvef_pct:.0f}%, change {-lvef_drop:+.0f} percentage points)"
     else:
-        graft_desc = f"Preserved Graft Function (LVEF {inp.lvef_pct:.0f}%)"
+        graft_desc = f"No major LVEF decline detected by heuristic screen (LVEF {inp.lvef_pct:.0f}%)"
 
     score = min(100.0, score)
 
-    # 7. Rejection Tier & Action Plan
     if score >= 70.0 or inp.hemodynamic_compromise or acr_norm == "3R" or pamr_norm == "pAMR 3":
         tier = OverallRejectionTier.SEVERE_CRITICAL
-        protocol.append("Immediate inpatient cardiac ICU / telemetry admission.")
-        protocol.append("High-dose IV Methylprednisolone pulse: 500-1000 mg IV daily x 3 days.")
-        if "3R" in acr_norm or acr_norm == "2R":
-            protocol.append("Initiate antithymocyte globulin (rATG / Thymoglobulin 1.5 mg/kg/day) for severe/refractory ACR.")
-        if pamr_norm in ("pAMR 2", "pAMR 3") or max_mfi >= 5000.0:
-            protocol.append("Initiate Plasma Exchange (Plasmapheresis 5-7 sessions) + IVIG (1-2 g/kg).")
-            protocol.append("Consider Rituximab (anti-CD20) or Bortezomib (proteasome inhibitor) for plasma cell elimination.")
-            protocol.append("Consider Eculizumab (C5 complement inhibitor) if microvascular capillary destruction is evident.")
-        monitoring.append("Daily bedside echocardiography and serial cardiac biomarker tracking.")
-        monitoring.append("Repeat endomyocardial biopsy in 7-14 days.")
-
+        review_actions.extend(
+            [
+                "Urgent heart-transplant-team assessment; determine need for monitored or inpatient evaluation.",
+                "Correlate biopsy pathology with symptoms, hemodynamics, graft function, DSA, biomarkers, infection, and adherence.",
+                "Use the transplant center's current protocol for treatment decisions; this tool does not prescribe therapy.",
+            ]
+        )
+        monitoring.extend(
+            [
+                "Repeat/confirm relevant diagnostic testing at a clinically appropriate interval.",
+                "Trend graft function and rejection markers under specialist supervision.",
+            ]
+        )
     elif score >= 40.0 or acr_norm == "2R" or pamr_norm == "pAMR 2":
         tier = OverallRejectionTier.MODERATE_REJECTION
-        if acr_norm == "2R":
-            protocol.append("Intravenous Methylprednisolone pulse: 500-1000 mg IV daily x 3 days followed by oral steroid taper.")
-        if pamr_norm == "pAMR 2":
-            protocol.append("Plasmapheresis + Intravenous Immunoglobulin (IVIG) protocol for active AMR.")
-        protocol.append("Optimize maintenance immunosuppression troughs (target high-therapeutic range).")
-        monitoring.append("Repeat endomyocardial biopsy in 2-3 weeks to confirm histologic clearance.")
-        monitoring.append("Weekly echocardiogram and DSA MFI trend analysis.")
-
-    elif score >= 20.0 or acr_norm == "1R" or pamr_norm in ("pAMR 1(H+)", "pAMR 1(I+)", "pAMR 1"):
+        review_actions.extend(
+            [
+                "Prompt heart-transplant-team review and multimodal correlation.",
+                "Verify immunosuppression exposure against the patient's prescribed target and assess adherence/interactions.",
+                "Follow center-specific treatment and repeat-biopsy strategy if clinically significant rejection is confirmed.",
+            ]
+        )
+        monitoring.append("Trend biopsy, DSA, graft function, and non-invasive biomarkers according to center protocol.")
+    elif score >= 20.0 or acr_norm == "1R" or pamr_norm.startswith("pAMR 1"):
         tier = OverallRejectionTier.MILD_SUSPICION
-        protocol.append("Outpatient management without pulse steroids if asymptomatic with preserved LVEF.")
-        protocol.append("Adjust and optimize maintenance calcineurin inhibitor and antimetabolite dosing.")
-        monitoring.append("Close clinical follow-up; repeat non-invasive dd-cfDNA / GEP in 2-4 weeks.")
-        monitoring.append("Consider repeat biopsy in 4 weeks if clinical or biomarker concern persists.")
-
+        review_actions.extend(
+            [
+                "Correlate findings with symptoms, graft function, immunosuppression exposure, and center-specific surveillance protocol.",
+                "No treatment recommendation is generated by this tool.",
+            ]
+        )
+        monitoring.append("Consider closer surveillance if abnormalities persist or additional risk signals are present.")
     else:
         tier = OverallRejectionTier.QUIESCENT
-        protocol.append("Continue standard maintenance immunosuppression.")
-        monitoring.append("Routine protocol surveillance (quarterly clinic visit, scheduled dd-cfDNA / AlloMap / echo).")
+        review_actions.append("No rejection treatment recommendation is generated; continue center-specific surveillance.")
+        monitoring.append("Continue routine surveillance appropriate to time from transplant and individual risk.")
+
+    limitations = [
+        "The 0-100 composite score is a transparent heuristic and has not been externally validated as a clinical prediction rule.",
+        "DSA MFI, dd-cfDNA, GEP, and immunosuppressant targets vary by assay, population, center, and clinical context.",
+        "Pathology grade and transplant-team assessment take precedence over this synthesized output.",
+    ]
 
     return TransplantRejectionReport(
         case_id=inp.case_id,
@@ -314,115 +395,110 @@ def evaluate_transplant_rejection(inp: TransplantCaseInput) -> TransplantRejecti
         acr_status=acr_desc,
         pamr_status=pamr_desc,
         dsa_status=dsa_desc,
-        biomarker_status=bm_desc,
+        biomarker_status=biomarker_desc,
         tdm_status=tdm_desc,
         graft_function_status=graft_desc,
-        treatment_protocol=protocol,
+        treatment_protocol=review_actions,
         monitoring_recommendations=monitoring,
         critical_alerts=alerts,
+        limitations=limitations,
     )
 
 
-def calculate_metrics(**kwargs) -> Dict[str, Any]:
-    """
-    Top-level interface compatible with generic wrappers and batch runners.
-    """
-    def _float(key: str, default: float) -> float:
-        val = kwargs.get(key)
-        if val is None:
-            return default
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return default
-
-    def _bool(key: str, default: bool = False) -> bool:
-        val = kwargs.get(key)
-        if val is None:
-            return default
-        if isinstance(val, bool):
-            return val
-        if isinstance(val, (int, float)):
-            return val != 0
-        if isinstance(val, str):
-            return val.strip().lower() in ("true", "1", "yes", "y", "t", "positive", "+")
+def _coerce_float(kwargs: Dict[str, Any], key: str, default: Optional[float]) -> Optional[float]:
+    value = kwargs.get(key)
+    if value is None or value == "":
         return default
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be numeric; received {value!r}.") from exc
 
-    def _str(key: str, default: str) -> str:
-        val = kwargs.get(key)
-        return str(val) if val is not None else default
 
-    case_id = _str("case_id", _str("id", _str("study_id", "TX-001")))
+def _coerce_bool(kwargs: Dict[str, Any], key: str, default: bool = False) -> bool:
+    value = kwargs.get(key)
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "t", "positive", "+"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "f", "negative", "-"}:
+            return False
+    raise ValueError(f"{key} must be a boolean value; received {value!r}.")
+
+
+def _coerce_str(kwargs: Dict[str, Any], key: str, default: str) -> str:
+    value = kwargs.get(key)
+    return str(value).strip() if value not in (None, "") else default
+
+
+def calculate_metrics(**kwargs: Any) -> Dict[str, Any]:
+    """Dictionary-oriented wrapper used by batch jobs and simple integrations."""
+
+    case_id = _coerce_str(kwargs, "case_id", _coerce_str(kwargs, "id", _coerce_str(kwargs, "study_id", "TX-001")))
     patient_id = kwargs.get("patient_id") or kwargs.get("Patient")
-    days = int(_float("days_post_transplant", _float("days", 180.0)))
-    
-    acr = _str("acr_grade", _str("acr", "0R"))
-    pamr = _str("pamr_grade", _str("pamr", "pAMR 0"))
-    c4d = _bool("c4d_positive", False)
-    cd68 = _bool("cd68_positive", False)
-    
-    dsa_pos = _bool("dsa_positive", False)
-    dsa_i = _float("dsa_class_i_mfi", 0.0)
-    dsa_ii = _float("dsa_class_ii_mfi", 0.0)
-    de_novo = _bool("de_novo_dsa", False)
+    days = int(_coerce_float(kwargs, "days_post_transplant", _coerce_float(kwargs, "days", 180.0)) or 0)
 
-    cfdna_raw = kwargs.get("dd_cfdna_pct")
-    cfdna = float(cfdna_raw) if cfdna_raw is not None else 0.08
-
-    allomap_raw = kwargs.get("allomap_score")
-    allomap = float(allomap_raw) if allomap_raw is not None else 28.0
-
-    drug = _str("primary_immunosuppressant", "Tacrolimus")
-    trough = _float("trough_level_ng_ml", _float("trough", _float("primary_metric", 8.5)))
-    mmf = _float("mmf_mpa_trough_ug_ml", 2.5)
-
-    lvef = _float("lvef_pct", _float("lvef", 62.0))
-    base_lvef = _float("baseline_lvef_pct", 65.0)
-    compromise = _bool("hemodynamic_compromise", _bool("critical_flag", False))
-    cav = int(_float("cav_grade", 0.0))
+    cfdna = _coerce_float(kwargs, "dd_cfdna_pct", 0.08)
+    allomap = _coerce_float(kwargs, "allomap_score", 28.0)
+    trough_low = _coerce_float(kwargs, "trough_target_low_ng_ml", None)
+    trough_high = _coerce_float(kwargs, "trough_target_high_ng_ml", None)
 
     inp = TransplantCaseInput(
         case_id=case_id,
-        patient_id=str(patient_id) if patient_id is not None else None,
+        patient_id=str(patient_id) if patient_id not in (None, "") else None,
         days_post_transplant=days,
-        acr_grade=acr,
-        pamr_grade=pamr,
-        c4d_positive=c4d,
-        cd68_positive=cd68,
-        dsa_positive=dsa_pos,
-        dsa_class_i_mfi=dsa_i,
-        dsa_class_ii_mfi=dsa_ii,
-        de_novo_dsa=de_novo,
+        acr_grade=_coerce_str(kwargs, "acr_grade", _coerce_str(kwargs, "acr", "0R")),
+        pamr_grade=_coerce_str(kwargs, "pamr_grade", _coerce_str(kwargs, "pamr", "pAMR 0")),
+        c4d_positive=_coerce_bool(kwargs, "c4d_positive", False),
+        cd68_positive=_coerce_bool(kwargs, "cd68_positive", False),
+        dsa_positive=_coerce_bool(kwargs, "dsa_positive", False),
+        dsa_class_i_mfi=float(_coerce_float(kwargs, "dsa_class_i_mfi", 0.0) or 0.0),
+        dsa_class_ii_mfi=float(_coerce_float(kwargs, "dsa_class_ii_mfi", 0.0) or 0.0),
+        de_novo_dsa=_coerce_bool(kwargs, "de_novo_dsa", False),
         dd_cfdna_pct=cfdna,
         allomap_score=allomap,
-        primary_immunosuppressant=drug,
-        trough_level_ng_ml=trough,
-        mmf_mpa_trough_ug_ml=mmf,
-        lvef_pct=lvef,
-        baseline_lvef_pct=base_lvef,
-        hemodynamic_compromise=compromise,
-        cav_grade=cav,
+        primary_immunosuppressant=_coerce_str(kwargs, "primary_immunosuppressant", "Tacrolimus"),
+        trough_level_ng_ml=float(
+            _coerce_float(
+                kwargs,
+                "trough_level_ng_ml",
+                _coerce_float(kwargs, "trough", _coerce_float(kwargs, "primary_metric", 8.5)),
+            )
+            or 0.0
+        ),
+        trough_target_low_ng_ml=trough_low,
+        trough_target_high_ng_ml=trough_high,
+        mmf_mpa_trough_ug_ml=float(_coerce_float(kwargs, "mmf_mpa_trough_ug_ml", 2.5) or 0.0),
+        lvef_pct=float(_coerce_float(kwargs, "lvef_pct", _coerce_float(kwargs, "lvef", 62.0)) or 0.0),
+        baseline_lvef_pct=float(_coerce_float(kwargs, "baseline_lvef_pct", 65.0) or 0.0),
+        hemodynamic_compromise=_coerce_bool(kwargs, "hemodynamic_compromise", _coerce_bool(kwargs, "critical_flag", False)),
+        cav_grade=int(_coerce_float(kwargs, "cav_grade", 0.0) or 0),
     )
 
     report = evaluate_transplant_rejection(inp)
-    res = report.to_dict()
-    res["tool"] = "cardiac-transplant-rejection-agent"
-    res["score"] = report.rejection_risk_score
-    res["classification"] = report.overall_rejection_tier
-    res["clinical_recommendation"] = "; ".join(report.treatment_protocol)
-    return res
+    result = report.to_dict()
+    result["tool"] = "cardiac-transplant-rejection-agent"
+    result["score"] = report.rejection_risk_score
+    result["classification"] = report.overall_rejection_tier
+    result["clinical_recommendation"] = "; ".join(report.treatment_protocol)
+    return result
 
 
 def process_batch(input_csv: str, output_csv: str) -> int:
-    """
-    Batch process cardiac transplant surveillance registry cases from CSV.
-    """
-    with open(input_csv, mode="r", encoding="utf-8-sig") as f:
-        reader = csv.DictReader(f)
+    """Process CSV rows while preserving row-level validation errors."""
+
+    with open(input_csv, mode="r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
-    out_fields = fieldnames + [
+    result_fields = [
         "rejection_risk_score",
         "overall_rejection_tier",
         "acr_status",
@@ -430,28 +506,34 @@ def process_batch(input_csv: str, output_csv: str) -> int:
         "dsa_status",
         "graft_function_status",
         "treatment_protocol",
+        "processing_error",
     ]
-    dedup_fields = []
-    for fn in out_fields:
-        if fn not in dedup_fields:
-            dedup_fields.append(fn)
+    output_fields = list(dict.fromkeys(fieldnames + result_fields))
 
-    out_rows = []
-    for r in rows:
-        calc_res = calculate_metrics(**r)
-        row_dict = dict(r)
-        row_dict["rejection_risk_score"] = calc_res["rejection_risk_score"]
-        row_dict["overall_rejection_tier"] = calc_res["overall_rejection_tier"]
-        row_dict["acr_status"] = calc_res["acr_status"]
-        row_dict["pamr_status"] = calc_res["pamr_status"]
-        row_dict["dsa_status"] = calc_res["dsa_status"]
-        row_dict["graft_function_status"] = calc_res["graft_function_status"]
-        row_dict["treatment_protocol"] = "; ".join(calc_res["treatment_protocol"])
-        out_rows.append(row_dict)
+    output_rows: List[Dict[str, Any]] = []
+    for row in rows:
+        output = dict(row)
+        try:
+            result = calculate_metrics(**row)
+            output.update(
+                rejection_risk_score=result["rejection_risk_score"],
+                overall_rejection_tier=result["overall_rejection_tier"],
+                acr_status=result["acr_status"],
+                pamr_status=result["pamr_status"],
+                dsa_status=result["dsa_status"],
+                graft_function_status=result["graft_function_status"],
+                treatment_protocol="; ".join(result["treatment_protocol"]),
+                processing_error="",
+            )
+        except (TypeError, ValueError) as exc:
+            for field_name in result_fields[:-1]:
+                output.setdefault(field_name, "")
+            output["processing_error"] = str(exc)
+        output_rows.append(output)
 
-    with open(output_csv, mode="w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=dedup_fields)
+    with open(output_csv, mode="w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=output_fields)
         writer.writeheader()
-        writer.writerows(out_rows)
+        writer.writerows(output_rows)
 
-    return len(out_rows)
+    return len(output_rows)
