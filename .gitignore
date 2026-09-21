@@ -1,9 +1,7 @@
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 dist/
@@ -21,4 +19,3 @@ tx_rejection_results.csv
 *.log
 .DS_Store
 Thumbs.db
-

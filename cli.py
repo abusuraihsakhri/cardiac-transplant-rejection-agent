@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-Cardiac Transplant Rejection & Allograft Surveillance CLI
-==========================================================
-Command line interface for assessing ISHLT cellular (0R-3R) and antibody-mediated
-(pAMR 0-3) rejection, DSA titers, dd-cfDNA %, and immunosuppressive TDM.
-"""
+"""Command-line interface for the cardiac transplant surveillance heuristic."""
 
 from __future__ import annotations
 
@@ -13,235 +8,209 @@ import json
 import sys
 from typing import Optional
 
-from cardiac_transplant_rejection import (
-    ACRGrade,
-    ImmunosuppressantDrug,
-    TransplantCaseInput,
-    calculate_metrics,
-    evaluate_transplant_rejection,
-    pAMRGrade,
-    process_batch,
-)
+from cardiac_transplant_rejection import TransplantCaseInput, evaluate_transplant_rejection, process_batch
 
 
 def format_report_table(report: dict) -> str:
-    """Format allograft surveillance dossier into an ASCII table."""
-    lines = []
-    lines.append("=" * 76)
-    lines.append(f"  HEART ALLOGRAFT SURVEILLANCE & REJECTION DOSSIER (ISHLT)")
-    lines.append("=" * 76)
-    lines.append(f"  Case ID               : {report['case_id']}")
-    lines.append(f"  Patient ID            : {report.get('patient_id') or 'N/A'}")
-    lines.append(f"  Post-Transplant Time  : Day {report['days_post_transplant']}")
-    lines.append(f"  Rejection Risk Score  : {report['rejection_risk_score']:.1f} / 100")
-    lines.append(f"  Overall Status        : {report['overall_rejection_tier']}")
-    lines.append("-" * 76)
-    lines.append("  PATHOLOGY & HISTOPATHOLOGY (ISHLT BIOPSY):")
-    lines.append(f"    * Acute Cellular Rejection (ACR): {report['acr_status']}")
-    lines.append(f"    * Antibody-Mediated (pAMR)      : {report['pamr_status']}")
-    lines.append("-" * 76)
-    lines.append("  SEROLOGY, BIOMARKERS & PHARMACOKINETICS:")
-    lines.append(f"    * Donor-Specific Antibodies (DSA): {report['dsa_status']}")
-    lines.append(f"    * Non-Invasive Biomarkers        : {report['biomarker_status']}")
-    lines.append(f"    * Immunosuppressant Trough (TDM) : {report['tdm_status']}")
-    lines.append(f"    * Allograft Hemodynamics / LVEF  : {report['graft_function_status']}")
-    lines.append("-" * 76)
-    lines.append("  RECOMMENDED CLINICAL ACTION PROTOCOL:")
+    """Format a surveillance report for terminal display."""
+    lines = [
+        "=" * 76,
+        "  HEART ALLOGRAFT SURVEILLANCE — RESEARCH / EDUCATIONAL HEURISTIC",
+        "=" * 76,
+        f"  Case ID               : {report['case_id']}",
+        f"  Patient ID            : {report.get('patient_id') or 'N/A'}",
+        f"  Post-transplant time  : Day {report['days_post_transplant']}",
+        f"  Heuristic score       : {report['rejection_risk_score']:.1f} / 100",
+        f"  Review tier           : {report['overall_rejection_tier']}",
+        "-" * 76,
+        f"  ACR                    : {report['acr_status']}",
+        f"  pAMR                   : {report['pamr_status']}",
+        f"  DSA                    : {report['dsa_status']}",
+        f"  Biomarkers             : {report['biomarker_status']}",
+        f"  Immunosuppression      : {report['tdm_status']}",
+        f"  Graft function         : {report['graft_function_status']}",
+        "-" * 76,
+        "  REVIEW ACTIONS:",
+    ]
     for step in report.get("treatment_protocol", []):
-        lines.append(f"    -> {step}")
-    lines.append("-" * 76)
-    lines.append("  SURVEILLANCE & MONITORING DIRECTIVES:")
-    for m in report.get("monitoring_recommendations", []):
-        lines.append(f"    * {m}")
+        lines.append(f"    - {step}")
+    if report.get("monitoring_recommendations"):
+        lines += ["-" * 76, "  MONITORING / CORRELATION:"]
+        lines += [f"    - {item}" for item in report["monitoring_recommendations"]]
     if report.get("critical_alerts"):
-        lines.append("-" * 76)
-        lines.append("  CRITICAL SAFETY ALERTS:")
-        for a in report["critical_alerts"]:
-            lines.append(f"    [!] {a}")
-    lines.append("=" * 76)
+        lines += ["-" * 76, "  FLAGS:"]
+        lines += [f"    ! {item}" for item in report["critical_alerts"]]
+    if report.get("limitations"):
+        lines += ["-" * 76, "  LIMITATIONS:"]
+        lines += [f"    - {item}" for item in report["limitations"]]
+    lines += ["=" * 76, "  Not validated for diagnosis, treatment selection, or patient-specific care."]
     return "\n".join(lines)
 
 
+def _ask_int(prompt: str, default: int) -> int:
+    raw = input(f"{prompt} [{default}]: ").strip()
+    return default if not raw else int(raw)
+
+
+def _ask_float(prompt: str, default: float) -> float:
+    raw = input(f"{prompt} [{default}]: ").strip()
+    return default if not raw else float(raw)
+
+
+def _ask_optional_float(prompt: str) -> Optional[float]:
+    raw = input(f"{prompt} [blank = not supplied]: ").strip()
+    return None if not raw else float(raw)
+
+
+def _ask_bool(prompt: str) -> bool:
+    raw = input(f"{prompt} (y/n): ").strip().lower()
+    if raw in {"y", "yes", "true", "1"}:
+        return True
+    if raw in {"n", "no", "false", "0", ""}:
+        return False
+    raise ValueError(f"Expected yes/no for: {prompt}")
+
+
 def interactive_wizard() -> TransplantCaseInput:
-    """Run interactive question prompt to gather transplant surveillance data."""
-    print("\n--- Cardiac Transplant Rejection Surveillance Wizard ---")
+    """Collect a compact surveillance case interactively."""
+    print("\n--- Cardiac Transplant Surveillance Heuristic ---")
     case_id = input("Case ID [TX-SURV-01]: ").strip() or "TX-SURV-01"
-    patient_id = input("Patient ID / MRN: ").strip() or None
+    patient_id = input("Patient ID (optional): ").strip() or None
+    days = _ask_int("Days post-transplant", 180)
 
-    def ask_int(prompt: str, default: int) -> int:
-        resp = input(f"{prompt} [{default}]: ").strip()
-        if not resp:
-            return default
-        try:
-            return int(resp)
-        except ValueError:
-            return default
+    print("\nACR grade: [1] 0R  [2] 1R  [3] 2R  [4] 3R")
+    acr = {"1": "0R", "2": "1R", "3": "2R", "4": "3R"}.get(input("Select [1]: ").strip() or "1")
+    if acr is None:
+        raise ValueError("Invalid ACR selection")
 
-    def ask_float(prompt: str, default: float) -> float:
-        resp = input(f"{prompt} [{default}]: ").strip()
-        if not resp:
-            return default
-        try:
-            return float(resp)
-        except ValueError:
-            return default
+    print("pAMR grade: [1] 0  [2] 1(H+)  [3] 1(I+)  [4] 2  [5] 3")
+    pamr = {
+        "1": "pAMR 0", "2": "pAMR 1(H+)", "3": "pAMR 1(I+)", "4": "pAMR 2", "5": "pAMR 3"
+    }.get(input("Select [1]: ").strip() or "1")
+    if pamr is None:
+        raise ValueError("Invalid pAMR selection")
 
-    def ask_bool(prompt: str) -> bool:
-        resp = input(f"{prompt} (y/n): ").strip().lower()
-        return resp in ("y", "yes", "true", "1")
-
-    days = ask_int("Days post-transplant", 180)
-    
-    print("\nISHLT Acute Cellular Rejection (ACR) Grade:")
-    print("  [1] 0R (None)")
-    print("  [2] 1R (Mild)")
-    print("  [3] 2R (Moderate)")
-    print("  [4] 3R (Severe)")
-    acr_choice = input("Select ACR (1-4) [1]: ").strip()
-    acr_map = {"1": "0R", "2": "1R", "3": "2R", "4": "3R"}
-    acr_grade = acr_map.get(acr_choice, "0R")
-
-    print("\nISHLT Pathologic Antibody-Mediated Rejection (pAMR) Grade:")
-    print("  [1] pAMR 0 (Negative)")
-    print("  [2] pAMR 1(H+) (Histologic alone)")
-    print("  [3] pAMR 1(I+) (C4d/C3d positive alone)")
-    print("  [4] pAMR 2 (Active AMR)")
-    print("  [5] pAMR 3 (Severe AMR)")
-    pamr_choice = input("Select pAMR (1-5) [1]: ").strip()
-    pamr_map = {"1": "pAMR 0", "2": "pAMR 1(H+)", "3": "pAMR 1(I+)", "4": "pAMR 2", "5": "pAMR 3"}
-    pamr_grade = pamr_map.get(pamr_choice, "pAMR 0")
-
-    dsa_pos = ask_bool("Donor-Specific Anti-HLA Antibodies (DSA) positive?")
-    dsa_i = 0.0
-    dsa_ii = 0.0
-    if dsa_pos:
-        dsa_i = ask_float("Max Class I HLA MFI", 0.0)
-        dsa_ii = ask_float("Max Class II HLA MFI (e.g. DQ)", 3500.0)
-
-    cfdna = ask_float("Donor-derived cell-free DNA dd-cfDNA (%) [threshold 0.12%]", 0.08)
-    trough = ask_float("Tacrolimus trough level (ng/mL)", 8.5)
-    lvef = ask_float("Current LVEF (%)", 62.0)
-    compromise = ask_bool("Hemodynamic compromise or inotrope requirement?")
+    dsa_positive = _ask_bool("DSA reported positive?")
+    dsa_mfi = _ask_float("Peak DSA MFI (reporting only)", 0.0) if dsa_positive else 0.0
+    dd_cfdna = _ask_float("dd-cfDNA (%)", 0.08)
+    allomap = _ask_float("GEP / AlloMap score", 28.0)
+    trough = _ask_float("Immunosuppressant trough (ng/mL)", 8.5)
+    trough_low = _ask_optional_float("Patient/center trough target low")
+    trough_high = _ask_optional_float("Patient/center trough target high")
+    lvef = _ask_float("Current LVEF (%)", 62.0)
+    baseline_lvef = _ask_float("Baseline LVEF (%)", 65.0)
+    compromise = _ask_bool("Hemodynamic compromise present?")
 
     return TransplantCaseInput(
         case_id=case_id,
         patient_id=patient_id,
         days_post_transplant=days,
-        acr_grade=acr_grade,
-        pamr_grade=pamr_grade,
-        dsa_positive=dsa_pos,
-        dsa_class_i_mfi=dsa_i,
-        dsa_class_ii_mfi=dsa_ii,
-        dd_cfdna_pct=cfdna,
+        acr_grade=acr,
+        pamr_grade=pamr,
+        dsa_positive=dsa_positive,
+        dsa_class_ii_mfi=dsa_mfi,
+        dd_cfdna_pct=dd_cfdna,
+        allomap_score=allomap,
         trough_level_ng_ml=trough,
+        trough_target_low_ng_ml=trough_low,
+        trough_target_high_ng_ml=trough_high,
         lvef_pct=lvef,
+        baseline_lvef_pct=baseline_lvef,
         hemodynamic_compromise=compromise,
     )
 
 
-def main(argv=None) -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cardiac-transplant-rejection",
-        description="Cardiac Transplant Rejection & Allograft Surveillance Engine (ISHLT / DSA / Biomarkers)",
+        description="Research/educational heart-allograft surveillance heuristic.",
     )
-    subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
+    sub = parser.add_subparsers(dest="command")
 
-    # Audit / Evaluate command
-    audit_parser = subparsers.add_parser("audit", help="Audit single allograft surveillance case")
-    audit_parser.add_argument("--case-id", default="TX-AUDIT-01", help="Case identifier")
-    audit_parser.add_argument("--patient-id", default=None, help="Patient MRN / ID")
-    audit_parser.add_argument("--days", type=int, default=180, help="Days post-transplant")
-    audit_parser.add_argument("--acr", choices=["0R", "1R", "2R", "3R"], default="0R", help="ISHLT ACR Grade")
-    audit_parser.add_argument("--pamr", choices=["pAMR 0", "pAMR 1(H+)", "pAMR 1(I+)", "pAMR 1", "pAMR 2", "pAMR 3"], default="pAMR 0", help="ISHLT pAMR Grade")
-    audit_parser.add_argument("--dsa-positive", action="store_true", help="DSA positive flag")
-    audit_parser.add_argument("--dsa-mfi", type=float, default=0.0, help="Peak DSA Luminex MFI")
-    audit_parser.add_argument("--de-novo-dsa", action="store_true", help="De novo DSA emergence")
-    audit_parser.add_argument("--dd-cfdna", type=float, default=0.08, help="Donor-derived cell-free DNA (%%)")
-    audit_parser.add_argument("--allomap", type=float, default=28.0, help="AlloMap GEP score (0-40)")
-    audit_parser.add_argument("--drug", choices=["Tacrolimus", "Cyclosporine"], default="Tacrolimus", help="Primary calcineurin inhibitor")
-    audit_parser.add_argument("--trough", type=float, default=8.5, help="Drug trough level (ng/mL)")
-    audit_parser.add_argument("--lvef", type=float, default=62.0, help="Current LVEF (%%)")
-    audit_parser.add_argument("--baseline-lvef", type=float, default=65.0, help="Baseline LVEF (%%)")
-    audit_parser.add_argument("--compromise", action="store_true", help="Hemodynamic compromise present")
-    audit_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    audit = sub.add_parser("audit", help="Evaluate one case")
+    audit.add_argument("--case-id", default="TX-AUDIT-01")
+    audit.add_argument("--patient-id", default=None)
+    audit.add_argument("--days", type=int, default=180)
+    audit.add_argument("--acr", default="0R")
+    audit.add_argument("--pamr", default="pAMR 0")
+    audit.add_argument("--dsa-positive", action="store_true")
+    audit.add_argument("--dsa-mfi", type=float, default=0.0)
+    audit.add_argument("--de-novo-dsa", action="store_true")
+    audit.add_argument("--dd-cfdna", type=float, default=0.08)
+    audit.add_argument("--allomap", type=float, default=28.0)
+    audit.add_argument("--drug", default="Tacrolimus")
+    audit.add_argument("--trough", type=float, default=8.5)
+    audit.add_argument("--trough-low", type=float, default=None)
+    audit.add_argument("--trough-high", type=float, default=None)
+    audit.add_argument("--lvef", type=float, default=62.0)
+    audit.add_argument("--baseline-lvef", type=float, default=65.0)
+    audit.add_argument("--compromise", action="store_true")
+    audit.add_argument("--json", action="store_true")
 
-    # Interactive command
-    interactive_parser = subparsers.add_parser("interactive", help="Interactive surveillance audit wizard")
-    interactive_parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    interactive = sub.add_parser("interactive", help="Interactive case entry")
+    interactive.add_argument("--json", action="store_true")
 
-    # Batch command
-    batch_parser = subparsers.add_parser("batch", help="Batch audit cases from CSV")
-    batch_parser.add_argument("-i", "--input", required=True, help="Input CSV path")
-    batch_parser.add_argument("-o", "--output", default="tx_rejection_results.csv", help="Output CSV path")
+    batch = sub.add_parser("batch", help="Process CSV records")
+    batch.add_argument("-i", "--input", required=True)
+    batch.add_argument("-o", "--output", default="tx_rejection_results.csv")
 
-    # Guidelines reference command
-    guide_parser = subparsers.add_parser("guidelines", help="Display ISHLT biopsy grading & biomarker thresholds")
+    sub.add_parser("guidelines", help="Show classification references and scope notes")
+    return parser
 
+
+def main(argv=None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
+    try:
+        if args.command == "audit":
+            case = TransplantCaseInput(
+                case_id=args.case_id,
+                patient_id=args.patient_id,
+                days_post_transplant=args.days,
+                acr_grade=args.acr,
+                pamr_grade=args.pamr,
+                dsa_positive=args.dsa_positive,
+                dsa_class_ii_mfi=args.dsa_mfi,
+                de_novo_dsa=args.de_novo_dsa,
+                dd_cfdna_pct=args.dd_cfdna,
+                allomap_score=args.allomap,
+                primary_immunosuppressant=args.drug,
+                trough_level_ng_ml=args.trough,
+                trough_target_low_ng_ml=args.trough_low,
+                trough_target_high_ng_ml=args.trough_high,
+                lvef_pct=args.lvef,
+                baseline_lvef_pct=args.baseline_lvef,
+                hemodynamic_compromise=args.compromise,
+            )
+            report = evaluate_transplant_rejection(case).to_dict()
+            print(json.dumps(report, indent=2) if args.json else format_report_table(report))
+            return 0
 
-    if args.command == "audit":
-        inp = TransplantCaseInput(
-            case_id=args.case_id,
-            patient_id=args.patient_id,
-            days_post_transplant=args.days,
-            acr_grade=args.acr,
-            pamr_grade=args.pamr,
-            dsa_positive=args.dsa_positive or (args.dsa_mfi > 1000.0),
-            dsa_class_ii_mfi=args.dsa_mfi,
-            de_novo_dsa=args.de_novo_dsa,
-            dd_cfdna_pct=args.dd_cfdna,
-            allomap_score=args.allomap,
-            primary_immunosuppressant=args.drug,
-            trough_level_ng_ml=args.trough,
-            lvef_pct=args.lvef,
-            baseline_lvef_pct=args.baseline_lvef,
-            hemodynamic_compromise=args.compromise,
-        )
-        report = evaluate_transplant_rejection(inp)
-        if args.json:
-            print(json.dumps(report.to_dict(), indent=2))
-        else:
-            print(format_report_table(report.to_dict()))
-        return 0
+        if args.command == "interactive":
+            report = evaluate_transplant_rejection(interactive_wizard()).to_dict()
+            print(json.dumps(report, indent=2) if args.json else format_report_table(report))
+            return 0
 
-    elif args.command == "interactive":
-        inp = interactive_wizard()
-        report = evaluate_transplant_rejection(inp)
-        if args.json:
-            print(json.dumps(report.to_dict(), indent=2))
-        else:
-            print(format_report_table(report.to_dict()))
-        return 0
+        if args.command == "batch":
+            count = process_batch(args.input, args.output)
+            print(f"Processed {count} records -> {args.output}")
+            return 0
 
-    elif args.command == "batch":
-        count = process_batch(args.input, args.output)
-        print(f"Processed {count} cardiac transplant records into '{args.output}'.")
-        return 0
+        if args.command == "guidelines":
+            print("ISHLT classification scope used by this tool")
+            print("- ACR: revised grades 0R, 1R, 2R, 3R")
+            print("- pAMR: pAMR 0, pAMR 1(H+), pAMR 1(I+), pAMR 2, pAMR 3")
+            print("- GEP is contextualized by time post-transplant; no single value diagnoses rejection.")
+            print("- DSA MFI, dd-cfDNA, and immunosuppressant targets are assay/center/patient specific.")
+            print("- The composite 0-100 score is an unvalidated research heuristic, not a guideline score.")
+            return 0
 
-    elif args.command == "guidelines":
-        print("=" * 76)
-        print("  ISHLT 2004 & 2013 HEART ALLOGRAFT REJECTION CLASSIFICATION MATRIX")
-        print("=" * 76)
-        print("  Acute Cellular Rejection (ACR):")
-        print("    - Grade 0R : No rejection")
-        print("    - Grade 1R : Mild (interstitial infiltrate, <= 1 focus myocyte damage)")
-        print("    - Grade 2R : Moderate (>= 2 foci myocyte damage) -> Pulse Steroids")
-        print("    - Grade 3R : Severe (diffuse infiltrate, necrosis, edema) -> Pulse + rATG")
-        print("  Pathologic Antibody-Mediated Rejection (pAMR):")
-        print("    - pAMR 0   : Negative")
-        print("    - pAMR 1   : Suspicious (Histologic H+ or Immunopathologic I+ C4d)")
-        print("    - pAMR 2   : Active AMR (Concurrent H+ and I+) -> Plasmapheresis + IVIG")
-        print("    - pAMR 3   : Severe AMR (Capillary destruction, microthrombi) -> PLEX + IVIG + Rituximab")
-        print("  Non-Invasive Surveillance Biomarkers:")
-        print("    - dd-cfDNA : < 0.12% normal, >= 0.20% high allograft injury probability")
-        print("    - AlloMap  : < 34 low risk of moderate/severe ACR (>= 55 days post-tx)")
-        print("=" * 76)
-        return 0
-
-    else:
         parser.print_help()
         return 0
+    except (ValueError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

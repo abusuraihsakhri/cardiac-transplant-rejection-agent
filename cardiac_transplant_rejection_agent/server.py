@@ -1,58 +1,61 @@
-"""
-FastAPI REST Application & Webhooks for HeartTransplant Sentinel: Endomyocardial Biopsy ISHLT Rejection & DSA Tracker.
-"""
-from typing import Dict, Any, Optional
-from .models import ClinicalCasePayload
-from .agents import TransplantCoordinator
+"""Optional FastAPI wrapper around the same surveillance engine used by the CLI."""
 
-coordinator = TransplantCoordinator()
+from __future__ import annotations
+
+from typing import Optional
+
+from cardiac_transplant_rejection import TransplantCaseInput, evaluate_transplant_rejection
+
 
 def create_app():
+    """Create the optional FastAPI application, or return None if FastAPI is absent."""
     try:
-        from fastapi import FastAPI
-        from pydantic import BaseModel
-
-        app = FastAPI(
-            title="HeartTransplant Sentinel: Endomyocardial Biopsy ISHLT Rejection & DSA Tracker",
-            description="Reconciles ISHLT cellular rejection grades (0R-3R), antibody-mediated rejection (pAMR 0-3), and donor-specific anti-HLA antibodies (DSA MFI).",
-            version="2.0.0-PRO",
-        )
-
-        class AuditRequest(BaseModel):
-            case_id: str = "CASE-2026-001"
-            patient_synthetic_id: str = "SYNTH-PT-881"
-            primary_metric: float = 24.5
-            secondary_metric: float = 14.0
-            status_flag: str = "DISCORDANT"
-            is_stat: bool = True
-            clinical_notes: str = ""
-            biomarkers: Dict[str, Any] = {}
-
-        class ChatRequest(BaseModel):
-            query: str
-
-        @app.get("/health")
-        def health():
-            return {"status": "HEALTHY", "system": "cardiac-transplant-rejection-agent", "domain": "Cardiology", "version": "2.0.0-PRO"}
-
-        @app.post("/api/audit")
-        def api_audit(req: AuditRequest):
-            payload = ClinicalCasePayload(
-                case_id=req.case_id,
-                patient_synthetic_id=req.patient_synthetic_id,
-                primary_metric=req.primary_metric,
-                secondary_metric=req.secondary_metric,
-                status_flag=req.status_flag,
-                is_stat=req.is_stat,
-                clinical_notes=req.clinical_notes,
-                biomarkers=req.biomarkers,
-            )
-            return coordinator.process_case(payload)
-
-        @app.post("/api/chat")
-        def api_chat(req: ChatRequest):
-            return {"response": coordinator.query_supervisory_chat(req.query)}
-
-        return app
+        from fastapi import FastAPI, HTTPException
+        from pydantic import BaseModel, ConfigDict
     except ImportError:
         return None
+
+    class AuditRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        case_id: str = "TX-API-01"
+        patient_id: Optional[str] = None
+        days_post_transplant: int = 180
+        acr_grade: str = "0R"
+        pamr_grade: str = "pAMR 0"
+        dsa_positive: bool = False
+        dsa_class_i_mfi: float = 0.0
+        dsa_class_ii_mfi: float = 0.0
+        de_novo_dsa: bool = False
+        dd_cfdna_pct: Optional[float] = 0.08
+        allomap_score: Optional[float] = 28.0
+        primary_immunosuppressant: str = "Tacrolimus"
+        trough_level_ng_ml: float = 8.5
+        trough_target_low_ng_ml: Optional[float] = None
+        trough_target_high_ng_ml: Optional[float] = None
+        lvef_pct: float = 62.0
+        baseline_lvef_pct: float = 65.0
+        hemodynamic_compromise: bool = False
+        cav_grade: int = 0
+
+    app = FastAPI(
+        title="Cardiac Transplant Rejection Surveillance",
+        description=(
+            "Research/educational API for a transparent surveillance heuristic. "
+            "It is not validated for diagnosis or treatment selection."
+        ),
+        version="2.1.0",
+    )
+
+    @app.get("/health")
+    def health():
+        return {"status": "ok", "version": "2.1.0", "clinical_use": False}
+
+    @app.post("/api/audit")
+    def audit(req: AuditRequest):
+        try:
+            report = evaluate_transplant_rejection(TransplantCaseInput(**req.model_dump()))
+            return report.to_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return app
